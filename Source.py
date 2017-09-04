@@ -23,7 +23,7 @@ orig_hsv_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HSV)
 
 base_layer, detail_layer = WLS_filter.wls_filter(orig_hsv_image[:,:,2])
 
-list_of_histogram_doublets =[]
+list_of_histogram_triplets =[]
 for (x,y,w,h) in faces:
     skinMask = face_detector.detect_skin(orig_img[y:y+h,x:x+w])
     face_portion = base_layer[y:y+h,x:x+w]
@@ -36,22 +36,24 @@ for (x,y,w,h) in faces:
     plt.figure()
     plt.plot(bins,hist)
 
-    doublet= [hist,bins]
-    list_of_histogram_doublets.append(doublet)
+    triplet= [hist,bins,skinMask]
+    list_of_histogram_triplets.append(triplet)
 
-for i in range(len(list_of_histogram_doublets)):
-    doublet = list_of_histogram_doublets[i]
-    d,m,b = hp.detect_modes(doublet[0],doublet[1],0.05)
-    # for elem in doublet[0]:
+for i in range(len(list_of_histogram_triplets)):
+    triplet = list_of_histogram_triplets[i]
+    d,m,b = hp.detect_modes(triplet[0],triplet[1],0.05)
+    # for elem in triplet[0]:
     #     print (str(elem)+','),
     # print '\n'
-    # for elem in doublet[1]:
+    # for elem in triplet[1]:
     #     print (str(elem)+','),
     print (d,m,b)
     face = faces[i]
     face_image = base_layer[face[1]:face[1]+face[3],face[0]:face[0]+face[2]]
-    hp.enhance_sidelit_face(face_image,doublet,d,m,b)
+    base_layer[face[1]:face[1] + face[3], face[0]:face[0] + face[2]] = hp.enhance_sidelit_face(face_image,triplet,d,m,b)
 
+    #orig_hsv_image[:,:,2] = base_layer+detail_layer
+    cv2.imshow("Original",cv2.cvtColor(orig_hsv_image, cv2.COLOR_HSV2BGR))
 
     #cv2.imshow("ab"+str(i),face_image)
 

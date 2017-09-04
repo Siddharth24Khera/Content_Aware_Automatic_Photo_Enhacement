@@ -6,10 +6,7 @@ import sys
 
 def generate_histogram(gray_img):
 
-    plt.figure()
-    plt.subplot(211)
     hist, bins, patches = plt.hist(gray_img.flatten(), 256, [0, 1])
-    plt.title("orig_his")
 
     len_of_hist = hist.shape[0]
     smooth_hist = np.zeros(len_of_hist)
@@ -22,9 +19,7 @@ def generate_histogram(gray_img):
     for i in range(2, len(bins)-3):
         smooth_hist[i] = (hist[i-2] + 2*hist[i-1] + 4*hist[i] + 2*hist[i+1] + hist[i+2])/10
     bin_centers = bins[:-1] + 0.5 * (bins[1:] - bins[:-1])
-    plt.subplot(212)
-    plt.plot(bin_centers,smooth_hist)
-    plt.title("smooth_his")
+
     return smooth_hist,bin_centers
 
 
@@ -78,12 +73,12 @@ def detect_modes(bin, hist, thresh_value):
                 min = bin[j]
                 min_index = j
         minimas.append(min_index)
-    print maximas
-    print minimas
-    print maxima_indexes
-    print maxima_values
-    print threshold
-    print pixels
+    # print maximas
+    # print minimas
+    # print maxima_indexes
+    # print maxima_values
+    # print threshold
+    # print pixels
     for i in range(0, len(maximas) - 1):
         for j in range(0, len(minimas)):
             if ((maximas[i] < minimas[j]) and (maximas[i + 1] > minimas[j]) and bin[minimas[j]] < (
@@ -98,11 +93,13 @@ def detect_modes(bin, hist, thresh_value):
     return -1, -1, -1
 
 
-def enhance_sidelit_face(face_image,hist_bin,d,m,b):
+def enhance_sidelit_face(face_image,hist_bin_mask,d,m,b):
+    skinMask = hist_bin_mask[2]
     mask_A = np.ones(face_image.shape)
     for i in range(face_image.shape[0]):
         for j in range(face_image.shape[1]):
-            if face_image[i][j] < m:
+            if face_image[i][j] < m and skinMask[i][j] > 0:
                 mask_A[i][j] = (b-d)*1.0/(m-d)
     # Apply edge aware constraint propagation to A
-    face_image = face_image * mask_A
+    sidelit_corrected = face_image * mask_A
+    return sidelit_corrected
