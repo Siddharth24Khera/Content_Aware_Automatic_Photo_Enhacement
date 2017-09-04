@@ -1,6 +1,7 @@
 import os
 import cv2
 import tao_asari
+import numpy as np
 
 def face_detect(tao_asari_enhanced_img):
     face_cascade = cv2.CascadeClassifier('C:\Users\Siddharth Khera\Desktop\opencv_3.0\sources\data\haarcascades_cuda' +
@@ -14,6 +15,30 @@ def face_detect(tao_asari_enhanced_img):
     )
 
     return faces
+
+
+def detect_skin(enhaced_img_face):
+    lower = np.array([0, 20, 0], dtype="uint8")
+    upper = np.array([20, 255, 255], dtype="uint8")
+
+    orig_img = enhaced_img_face
+    orig_hsv_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2HSV)
+    skinMask = cv2.inRange(orig_hsv_image, lower, upper)
+
+    # apply a series of erosions and dilations to the mask
+    # using an elliptical kernel
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+    skinMask = cv2.erode(skinMask, kernel, iterations=2)
+    skinMask = cv2.dilate(skinMask, kernel, iterations=2)
+
+    # blur the mask to help remove noise, then apply the
+    # mask to the frame
+    skinMask = cv2.GaussianBlur(skinMask, (3, 3), 0)
+    # print skinMask.shape
+    # skin = cv2.bitwise_and(orig_img, orig_img, mask=skinMask)
+
+    return skinMask
+
 
 
 if __name__ == '__main__':
