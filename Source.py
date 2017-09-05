@@ -41,22 +41,26 @@ for (x,y,w,h) in faces:
 
 for i in range(len(list_of_histogram_triplets)):
     triplet = list_of_histogram_triplets[i]
-    d,m,b = hp.detect_modes(triplet[0],triplet[1],0.05)
-    # for elem in triplet[0]:
-    #     print (str(elem)+','),
-    # print '\n'
-    # for elem in triplet[1]:
-    #     print (str(elem)+','),
-    print (d,m,b)
     face = faces[i]
     face_image = base_layer[face[1]:face[1]+face[3],face[0]:face[0]+face[2]]
-    base_layer[face[1]:face[1] + face[3], face[0]:face[0] + face[2]] = hp.enhance_sidelit_face(face_image,triplet,d,m,b)
 
-    #orig_hsv_image[:,:,2] = base_layer+detail_layer
-    cv2.imshow("Original",cv2.cvtColor(orig_hsv_image, cv2.COLOR_HSV2BGR))
+    base_layer[face[1]:face[1] + face[3], face[0]:face[0] + face[2]] = hp.enhance_sidelit_face(face_image,triplet)
+    base_layer[face[1]:face[1] + face[3], face[0]:face[0] + face[2]] = hp.enhance_underexposed(face_image, triplet)
 
-    #cv2.imshow("ab"+str(i),face_image)
 
+
+
+orig_hsv_image[:,:,2] = (base_layer+detail_layer)*255
+final_image = cv2.cvtColor(orig_hsv_image, cv2.COLOR_HSV2BGR)
+
+
+for (x, y, w, h) in faces:
+    # final_image[y:y + h, x:x + w] = face_detector.floyd_steinberg_dither_3Channel(final_image[y:y + h, x:x + w])
+    final_image[y:y+h,x:x+w]=cv2.bilateralFilter(final_image[y:y+h,x:x+w],5,300,300)
+
+im = np.hstack((orig_img,final_image))
+cv2.imshow("Original", im)
+cv2.imwrite('sidelit_ouput.jpg',im)
 
 
 # cv2.imshow("Original",orig_hsv_image)

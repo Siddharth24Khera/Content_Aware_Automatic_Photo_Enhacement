@@ -8,9 +8,7 @@ __author__ = 'srlu'
 
 class Aindane(object):
     """Implementation of AINDANE
-
     Adaptive and integrated neighborhood-dependent approach for nonlinear enhancement of color images
-
     Attributes:
         img_bgr: The image to be processed, read by cv2.imread
         img_gray: img_bgr converted to gray following NTSC
@@ -36,11 +34,9 @@ class Aindane(object):
 
     def _ale(self):
         """ale algorithm in SubSection 3.1 of the paper.
-
         Basically just the implementation of the following formula:
             In_prime = f(In, z)
         Calculates In and z, then return In_prime
-
         :return In_prime:
         """
 
@@ -68,13 +64,10 @@ class Aindane(object):
 
     def _ace(self, In_prime, c=5):
         """ace algorithm in SubSection 3.2 of the paper
-
         Implementation of:
             S = f(In_prime, E(P()))
-
         :param In_prime:
         :param c:
-
         :return S:
         """
 
