@@ -5,10 +5,11 @@ import tao_asari
 import WLS_filter
 import histogram_process as hp
 import face_detector
+import sky_enhancement
 
 print ("Enter image path")
 #img_path = raw_input()
-img_path = '.\Images\dsc_0052.jpg'
+img_path = '.\Images\und.jpg'
 
 orig_img = cv2.imread(img_path)
 
@@ -25,11 +26,8 @@ base_layer, detail_layer = WLS_filter.wls_filter(orig_hsv_image[:,:,2])
 
 list_of_histogram_triplets =[]
 for (x,y,w,h) in faces:
-    skinMask = face_detector.detect_skin(orig_img[y:y+h,x:x+w])
+    skinMask = face_detector.detect_skin(tao_asari_enhanced_img[y:y+h,x:x+w])
     face_portion = base_layer[y:y+h,x:x+w]
-
-    # cv2.imshow("Original",cv2.bitwise_and(face_portion,face_portion, mask=skinMask))
-    # cv2.waitKey(0)
 
     hist, bins = hp.generate_histogram(cv2.bitwise_and(face_portion,face_portion, mask=skinMask))
     #hist, bins = hp.generate_histogram(face_portion)
@@ -48,8 +46,6 @@ for i in range(len(list_of_histogram_triplets)):
     base_layer[face[1]:face[1] + face[3], face[0]:face[0] + face[2]] = hp.enhance_underexposed(face_image, triplet)
 
 
-
-
 orig_hsv_image[:,:,2] = (base_layer+detail_layer)*255
 final_image = cv2.cvtColor(orig_hsv_image, cv2.COLOR_HSV2BGR)
 
@@ -58,13 +54,14 @@ for (x, y, w, h) in faces:
     # final_image[y:y + h, x:x + w] = face_detector.floyd_steinberg_dither_3Channel(final_image[y:y + h, x:x + w])
     final_image[y:y+h,x:x+w]=cv2.bilateralFilter(final_image[y:y+h,x:x+w],5,300,300)
 
+final_image,_ = sky_enhancement.sky_enhancement(final_image)
 im = np.hstack((orig_img,final_image))
+
 cv2.imshow("Original", im)
-cv2.imwrite('sidelit_ouput.jpg',im)
-
-
-# cv2.imshow("Original",orig_hsv_image)
-# cv2.imshow("Base",base_layer)
-# cv2.imshow("Detail",detail_layer)
 plt.show()
-cv2.waitKey(0)
+key = cv2.waitKey(20)
+if key & 0xFF == ord('s'):
+    cv2.imwrite('output.jpg', im)
+
+cv2.destroyAllWindows()
+plt.close()

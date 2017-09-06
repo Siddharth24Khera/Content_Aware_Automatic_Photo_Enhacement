@@ -125,13 +125,17 @@ def enhance_underexposed(face_image,hist_bin_mask):
         pValue = hist_bin_mask[1][i]
         break
 
-    pValue = int(pValue*255)
     print pValue
-    if pValue >120:
+    if pValue >120.0/255:
         return face_image
-    fValue = (120+pValue)*1.0/(2*pValue)
-    fValue = fValue/255
-    mask_A = np.full(face_image.shape,fValue)
+    fValue = (120+pValue*255)*1.0/(510*pValue)
+    print fValue
+    mask_A = np.ones(face_image.shape)
+    for i in range(face_image.shape[0]):
+        for j in range(face_image.shape[1]):
+            # if skinMask[i][j] > 0:
+            #     mask_A[i][j] = fValue
+            mask_A[i][j] = fValue
 
     mask_A = EACP(mask_A, face_image)
     exposure_corrected = face_image * mask_A
