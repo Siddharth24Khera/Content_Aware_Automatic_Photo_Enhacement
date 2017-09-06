@@ -7,7 +7,7 @@ import histogram_process as hp
 import face_detector
 import sky_enhancement
 
-print ("Enter image path")
+#print ("Enter image path")
 #img_path = raw_input()
 img_path = '.\Images\und.jpg'
 

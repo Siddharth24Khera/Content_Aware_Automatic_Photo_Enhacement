@@ -16,11 +16,73 @@ def in_idea_blue_rg(I_origin):
 def _var_lenpos(val, pos):
     return val, len(pos), pos
 
+
+def _get_top_one_third(img):
+    return img[0:img.shape[0]/3,...]
+
+def sky_prob_to_01(sky_prob_map, thresh=0.0):
+    return sky_prob_map > thresh
+
+def _2to3(A):
+    res = np.empty([A.shape[0], A.shape[1], 3])
+    res[:,:,0] = A; res[:,:,1] = A; res[:,:,2] = A
+    return res
+
+def sky_enhance(X, P, Sbgr
+                ,I_origin, sky_prob_map):
+    """
+    ARGs:
+    -----
+    X: Alpha = x[0]; C = x[1]; S=x[2]
+    P: sky_porb_map
+    Sbgr: np.array([[[Sb, Sg, Sr]]]), mean of the sky color in current image
+    NOTE: computing some color-like array (e.g. beta_old) will actually exceed 255,
+          use 'float' instead of 'uint8'
+    """
+    Alpha = X[0]; C = X[1]; S=X[2]
+
+    f_sky_bgr = np.array([[[255,210,160]]], dtype='uint8')
+    f_sky = cv2.cvtColor(f_sky_bgr, cv2.COLOR_BGR2LAB) # preferred color, in CIELab
+    Slab = cv2.cvtColor(Sbgr, cv2.COLOR_BGR2LAB)
+    f_lab = 1.0*f_sky / Slab # (f_l, f_a, f_b), correction ratio
+    print 'f_lab: ', f_lab
+    beta_old = cv2.cvtColor( cape_util.safe_convert(_2to3(S) * Sbgr, np.uint8), cv2.COLOR_BGR2LAB )
+    kai_old = cv2.cvtColor( cape_util.safe_convert(_2to3(C), np.uint8), cv2.COLOR_BGR2LAB )
+    W = np.array([[[100, 0, 0]]])
+
+    P_3 = _2to3(P)
+    beta_new = cv2.add(P_3*(f_lab*beta_old), (1-P_3)*beta_old)
+    kai_new = cv2.add(P_3*((W+kai_old)/2.0), (1-P_3)*kai_old)
+    _fst = _2to3(1-Alpha)*cv2.cvtColor(beta_new.astype('uint8'), cv2.COLOR_LAB2BGR)
+    _lst = _2to3(Alpha)*cv2.cvtColor(kai_new.astype('uint8'), cv2.COLOR_LAB2BGR)
+    res = cv2.add( _fst, _lst ) # use cv2.add() to avoid overflow e.g. 150+125=255, not 20
+    # visualize _fst, _lst for debugging
+    _first = I_origin.copy(); _last = I_origin.copy()
+    _first[ sky_prob_to_01(sky_prob_map, thresh=0.0) ] = _fst[0]
+    _last[ sky_prob_to_01(sky_prob_map, thresh=0.0) ] = _lst[0]
+
+    return res
+
+def sky_enhancement(I):
+    S, sky_prob_map = sky_ref_patch_detection(I)
+    res = I.copy() # res shape is (1, num_sky_pixels, 3)
+    if S == []:
+        print 'S is empty'
+    elif sky_prob_to_01(sky_prob_map, thresh=0.).any():
+        X = sky_cloud_decompose(S, sky_prob_map, cape_util.mask_skin(I, sky_prob_map.astype(bool)))
+        Sbgr = np.array([[S]], dtype='uint8')
+        P = sky_prob_map[sky_prob_to_01(sky_prob_map, thresh=0.0)].reshape(1,-1) # return sky_prob regarded as sky
+        enhance_res = sky_enhance( X, P, Sbgr, I, sky_prob_map)
+        res[sky_prob_to_01(sky_prob_map, thresh=0.0)] = enhance_res[0]
+    else:
+        print 'no sky pixels detected!'
+
+    return res, sky_prob_map
+
 def get_sky_ref_patch(f_gray_one_third, sky_prob_map):
     """
+    TAKEN FROM github/SHIRILULU
     Return mean and std of the *largest* sky patch detected on the input image
-    +TODO: clear patches other than the largest (set sky_prob to 0)
-    Will MODIFY sky_prob_map
     """
     lbl, nlbl = ndi.label(f_gray_one_third)
     lbls = np.arange(1, nlbl+1)
@@ -41,24 +103,10 @@ def get_sky_ref_patch(f_gray_one_third, sky_prob_map):
             sky_prob_map.ravel()[_p] = 0.
     return mean, std
 
-def _get_top_one_third(img):
-    return img[0:img.shape[0]/3,...]
-
-def sky_prob_to_01(sky_prob_map, thresh=0.0):
-    return sky_prob_map > thresh
-
-def _2to3(A):
-    """
-    dimension increase [1,2] to [[1,1,1], [2,2,2]]
-    extend A=arraytype(m,n) to (m,n,3), copy values
-    m=1 in this func (sky_enhance)
-    """
-    res = np.empty([A.shape[0], A.shape[1], 3])
-    res[:,:,0] = A; res[:,:,1] = A; res[:,:,2] = A
-    return res
 
 def sky_ref_patch_detection(I_origin):
     """
+    TAKEN FROM github/SHIRILULU
     RETURN:
     S: list:[Sb, Sg, Sr]
     sky_prob_map
@@ -119,7 +167,14 @@ def sky_ref_patch_detection(I_origin):
     return S, sky_prob_map
 
 def sky_cloud_decompose(Sbgr, sky_prob_map ,sky_pixels, lambda_=1.0):
-
+    """
+    TAKEN FROM github/SHIRILULU
+    :param Sbgr:
+    :param sky_prob_map:
+    :param sky_pixels:
+    :param lambda_:
+    :return:
+    """
     only_sky_pixels = sky_pixels[ sky_prob_to_01(sky_pixels[...,0]) ]
 
     def J_prime(x):
@@ -156,77 +211,16 @@ def sky_cloud_decompose(Sbgr, sky_prob_map ,sky_pixels, lambda_=1.0):
         projected_grad[0][(X-grad)[0] >=1]=0
         X -= projected_grad
 
-        # if not (i % 100):
-        #     print 'iter:', i, J(X)/1e5
     # visualize Alpha
     _sky_cloud_prob = sky_prob_to_01(sky_prob_map, thresh=0.0).astype('float64') # black & white
     _sky_cloud_prob[ sky_prob_to_01(sky_prob_map, thresh=0.0) ] = X[0][0]
     return X
 
-def sky_enhance(X, P, Sbgr
-                ,I_origin, sky_prob_map):
-    """
-    ARGs:
-    -----
-    X: Alpha = x[0]; C = x[1]; S=x[2]
-    P: sky_porb_map
-    Sbgr: np.array([[[Sb, Sg, Sr]]]), mean of the sky color in current image
-    NOTE: computing some color-like array (e.g. beta_old) will actually exceed 255,
-          use 'float' instead of 'uint8'
-    """
-    Alpha = X[0]; C = X[1]; S=X[2]
 
-    f_sky_bgr = np.array([[[255,210,160]]], dtype='uint8')
-    f_sky = cv2.cvtColor(f_sky_bgr, cv2.COLOR_BGR2LAB) # preferred color, in CIELab
-    Slab = cv2.cvtColor(Sbgr, cv2.COLOR_BGR2LAB)
-    f_lab = 1.0*f_sky / Slab # (f_l, f_a, f_b), correction ratio
-    print 'f_lab: ', f_lab
-    beta_old = cv2.cvtColor( cape_util.safe_convert(_2to3(S) * Sbgr, np.uint8), cv2.COLOR_BGR2LAB )
-    kai_old = cv2.cvtColor( cape_util.safe_convert(_2to3(C), np.uint8), cv2.COLOR_BGR2LAB )
-    W = np.array([[[100, 0, 0]]])
-    # W = np.array([[[255, 128, 128]]]) # (255,255,255) in RGB
-
-    P_3 = _2to3(P)
-    beta_new = cv2.add(P_3*(f_lab*beta_old), (1-P_3)*beta_old)
-    kai_new = cv2.add(P_3*((W+kai_old)/2.0), (1-P_3)*kai_old)
-    _fst = _2to3(1-Alpha)*cv2.cvtColor(beta_new.astype('uint8'), cv2.COLOR_LAB2BGR)
-    _lst = _2to3(Alpha)*cv2.cvtColor(kai_new.astype('uint8'), cv2.COLOR_LAB2BGR)
-    res = cv2.add( _fst, _lst ) # use cv2.add() to avoid overflow e.g. 150+125=255, not 20
-    # visualize _fst, _lst for debugging
-    _first = I_origin.copy(); _last = I_origin.copy()
-    _first[ sky_prob_to_01(sky_prob_map, thresh=0.0) ] = _fst[0]
-    _last[ sky_prob_to_01(sky_prob_map, thresh=0.0) ] = _lst[0]
-    cape_util.display( np.hstack([_first, _last] ) )
-
-    return res
-
-def sky_enhancement(I):
-    """
-    Main function to perform sky enhancement
-    Keyword Arguments:
-    I -- np.uint8 (m,n,3), BGR
-    Returns:
-    res -- np.uint8 (m,n,3), I with sky part enhanced
-    sky_prob_map -- np.float 0-1 (m,n,1), sky probability map
-    """
-    S, sky_prob_map = sky_ref_patch_detection(I)
-    res = I.copy() # res shape is (1, num_sky_pixels, 3)
-    if S == []:
-        print 'S is empty'
-    elif sky_prob_to_01(sky_prob_map, thresh=0.).any():
-        X = sky_cloud_decompose(S, sky_prob_map, cape_util.mask_skin(I, sky_prob_map.astype(bool)))
-        Sbgr = np.array([[S]], dtype='uint8')
-        P = sky_prob_map[sky_prob_to_01(sky_prob_map, thresh=0.0)].reshape(1,-1) # return sky_prob regarded as sky
-        enhance_res = sky_enhance( X, P, Sbgr, I, sky_prob_map)
-        res[sky_prob_to_01(sky_prob_map, thresh=0.0)] = enhance_res[0]
-    else:
-        print 'no sky pixels detected!'
-
-    return res, sky_prob_map
 
 
 def main():
-    I_origin = cv2.imread('./Images/pic36.jpg')
+    I_origin = cv2.imread('./Images/skyCorrect.jpg')
     res_disp,_ = sky_enhancement(I_origin)
     fin_image = np.hstack((I_origin,res_disp))
     cv2.imshow("Window",fin_image)
